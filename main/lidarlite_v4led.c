@@ -34,9 +34,9 @@
 
 #include "lidarlite_v4led.h"
 
-#define I2C_TIMEOUT_MS    1000
-#define I2C_DEV_SCL_HZ    400000
-#define I2C_MAX_WRITE_LEN 16   /* reg addr byte + up to 15 data bytes */
+#define I2C_TIMEOUT_MS          1000
+#define I2C_DEV_SCL_HZ          400000
+#define I2C_MAX_WRITE_LEN       16      /* reg addr byte + up to 15 data bytes */
 
 static const char *TAG = "[lidarlite_v4led]";
 
@@ -266,15 +266,24 @@ void lidarlite_v4led_take_range(i2c_master_dev_handle_t dev)
   Parameters
   ------------------------------------------------------------------------------
   dev: device handle
+  timeout_ms: timeout in milliseconds
 ------------------------------------------------------------------------------*/
-void lidarlite_v4led_wait_for_busy(i2c_master_dev_handle_t dev)
+void lidarlite_v4led_wait_for_busy(i2c_master_dev_handle_t dev, uint32_t timeout_ms)
 {
     uint8_t busy_flag;
+    uint32_t timeout_counter = 0;
 
     do
     {
         busy_flag = lidarlite_v4led_get_busy_flag(dev);
         vTaskDelay(pdMS_TO_TICKS(1));
+        timeout_counter++;
+
+        if (timeout_counter >= timeout_ms)
+        {
+            ESP_LOGW(TAG, "Timeout waiting for busy flag to go LOW!\n");
+            break;
+        }
     } while (busy_flag);
 
 } /* lidarlite_v4led_wait_for_busy */
@@ -311,8 +320,9 @@ uint8_t lidarlite_v4led_get_busy_flag(i2c_master_dev_handle_t dev)
   ------------------------------------------------------------------------------
   trigger_pin: digital output pin connected to trigger input of LIDAR-Lite
   monitor_pin: digital input pin connected to monitor output of LIDAR-Lite
+  timeout_ms: timeout in milliseconds
 ------------------------------------------------------------------------------*/
-void lidarlite_v4led_take_range_gpio(gpio_num_t trigger_pin, gpio_num_t monitor_pin)
+void lidarlite_v4led_take_range_gpio(gpio_num_t trigger_pin, gpio_num_t monitor_pin, uint32_t timeout_ms)
 {
     uint8_t busy_flag;
 
@@ -335,7 +345,7 @@ void lidarlite_v4led_take_range_gpio(gpio_num_t trigger_pin, gpio_num_t monitor_
         vTaskDelay(pdMS_TO_TICKS(1));
         
         timeout_counter++;
-        if (timeout_counter > 1000)
+        if (timeout_counter >= timeout_ms)
         {
             ESP_LOGW(TAG, "Timeout waiting for busy flag to go HIGH!\n");
             break;
@@ -351,8 +361,9 @@ void lidarlite_v4led_take_range_gpio(gpio_num_t trigger_pin, gpio_num_t monitor_
   Parameters
   ------------------------------------------------------------------------------
   monitor_pin: digital input pin connected to monitor output of LIDAR-Lite
+  timeout_ms: timeout in milliseconds
 ------------------------------------------------------------------------------*/
-void lidarlite_v4led_wait_for_busy_gpio(gpio_num_t monitor_pin)
+void lidarlite_v4led_wait_for_busy_gpio(gpio_num_t monitor_pin, uint32_t timeout_ms)
 {
     uint8_t busy_flag;
     uint32_t timeout_counter = 0;
@@ -363,7 +374,7 @@ void lidarlite_v4led_wait_for_busy_gpio(gpio_num_t monitor_pin)
         vTaskDelay(pdMS_TO_TICKS(1));
 
         timeout_counter++;
-        if (timeout_counter > 1000)
+        if (timeout_counter >= timeout_ms)
         {
             ESP_LOGW(TAG, "Timeout waiting for busy flag to go LOW!\n");
             break;

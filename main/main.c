@@ -72,15 +72,15 @@ static void loop(void *arg)
 static void take_range(void)
 {
     lidarlite_v4led_take_range(gp_s_dev_handle);
-    lidarlite_v4led_wait_for_busy(gp_s_dev_handle);
+    lidarlite_v4led_wait_for_busy(gp_s_dev_handle, 1000);
     uint16_t distance_cm = lidarlite_v4led_read_distance(gp_s_dev_handle);
     ESP_LOGI(TAG, "Distance: %d cm", distance_cm);
 }
 
 static void take_range_gpio(void)
 {
-    lidarlite_v4led_take_range_gpio(TRIGGER_PIN, MONITOR_PIN);
-    lidarlite_v4led_wait_for_busy(gp_s_dev_handle);
+    lidarlite_v4led_take_range_gpio(TRIGGER_PIN, MONITOR_PIN, 1000);
+    lidarlite_v4led_wait_for_busy(gp_s_dev_handle, 1000);
     uint16_t distance_cm = lidarlite_v4led_read_distance(gp_s_dev_handle);
     ESP_LOGI(TAG, "Distance: %d cm", distance_cm);
 }
