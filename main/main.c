@@ -8,12 +8,12 @@
 #include "esp_err.h"
 #include "esp_log.h"
 
+#include "lidarlite_v4led.h"
+
 #define SDA_PIN GPIO_NUM_16
 #define SCL_PIN GPIO_NUM_17
 #define TRIGGER_PIN GPIO_NUM_5
 #define MONITOR_PIN GPIO_NUM_33
-
-#include "lidarlite_v4led.h"
 
 static const char *TAG = "[main]";
 
@@ -57,7 +57,7 @@ void app_main(void)
     ESP_ERROR_CHECK(gpio_config(&io_conf));
 
     vTaskDelay(pdMS_TO_TICKS(100));
-    xTaskCreate(loop, "loop", 4096, NULL, 5, NULL);
+    xTaskCreate(loop, "loop", 1024, NULL, 5, NULL);
 }
 
 static void loop(void *arg)
@@ -72,15 +72,15 @@ static void loop(void *arg)
 static void take_range(void)
 {
     lidarlite_v4led_take_range(gp_s_dev_handle);
-    lidarlite_v4led_wait_for_busy(gp_s_dev_handle, 1000);
+    lidarlite_v4led_wait_for_busy(gp_s_dev_handle, 100);
     uint16_t distance_cm = lidarlite_v4led_read_distance(gp_s_dev_handle);
     ESP_LOGI(TAG, "Distance: %d cm", distance_cm);
 }
 
 static void take_range_gpio(void)
 {
-    lidarlite_v4led_take_range_gpio(TRIGGER_PIN, MONITOR_PIN, 1000);
-    lidarlite_v4led_wait_for_busy(gp_s_dev_handle, 1000);
+    lidarlite_v4led_take_range_gpio(TRIGGER_PIN, MONITOR_PIN, 100);
+    lidarlite_v4led_wait_for_busy(gp_s_dev_handle, 100);
     uint16_t distance_cm = lidarlite_v4led_read_distance(gp_s_dev_handle);
     ESP_LOGI(TAG, "Distance: %d cm", distance_cm);
 }
