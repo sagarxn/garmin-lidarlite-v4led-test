@@ -87,15 +87,15 @@ esp_err_t lidarlite_v4led_deinit(i2c_master_dev_handle_t dev_handle)
   ------------------------------------------------------------------------------
   bus_handle:  the I2C master bus the device lives on
   dev_handle:  pointer to the device handle to rebind
-  new_address: I2C address to rebind this handle to
+  new_addr:    I2C address to rebind this handle to
 ------------------------------------------------------------------------------*/
-esp_err_t lidarlite_v4led_update_address(i2c_master_bus_handle_t bus_handle, i2c_master_dev_handle_t *dev_handle, uint8_t new_address)
+esp_err_t lidarlite_v4led_update_address(i2c_master_bus_handle_t bus_handle, i2c_master_dev_handle_t *dev_handle, uint8_t new_addr)
 {
     esp_err_t ret;
     i2c_master_dev_handle_t new_dev_handle;
     i2c_device_config_t dev_cfg = {
         .dev_addr_length = I2C_ADDR_BIT_LEN_7,
-        .device_address  = new_address,
+        .device_address  = new_addr,
         .scl_speed_hz    = I2C_DEV_SCL_HZ,
     };
 
@@ -139,12 +139,12 @@ esp_err_t lidarlite_v4led_update_address(i2c_master_bus_handle_t bus_handle, i2c
          acquisition count to a minimum for faster rep rates on very
          close targets with high error.
 ------------------------------------------------------------------------------*/
-void lidarlite_v4led_configure(i2c_master_dev_handle_t dev, uint8_t configuration)
+void lidarlite_v4led_configure(i2c_master_dev_handle_t dev, uint8_t config)
 {
     uint8_t sig_count_max;
     uint8_t acq_config_reg;
 
-    switch (configuration)
+    switch (config)
     {
         case 0: /* Default mode - Maximum range */
             sig_count_max  = 0xff;
@@ -195,14 +195,14 @@ void lidarlite_v4led_configure(i2c_master_dev_handle_t dev, uint8_t configuratio
 
   Parameters
   ------------------------------------------------------------------------------
-  bus_handle:     the I2C master bus the device lives on
-  dev_handle:     pointer to device handle (must currently be bound to the
+  bus_handle:      the I2C master bus the device lives on
+  dev_handle:      pointer to device handle (must currently be bound to the
                    device's *current* address)
-  newAddress:     desired secondary I2C device address
-  disableDefault: a non-zero value here means the default 0x62 I2C device
+  new_addr:        desired secondary I2C device address
+  disable_default: a non-zero value here means the default 0x62 I2C device
     address will be disabled.
 ------------------------------------------------------------------------------*/
-void lidarlite_v4led_set_i2c_addr(i2c_master_bus_handle_t bus_handle, i2c_master_dev_handle_t *dev_handle, uint8_t newAddress, uint8_t disableDefault)
+void lidarlite_v4led_set_i2c_addr(i2c_master_bus_handle_t bus_handle, i2c_master_dev_handle_t *dev_handle, uint8_t new_addr, uint8_t disable_default)
 {
     uint8_t data_bytes[5];
 
@@ -215,7 +215,7 @@ void lidarlite_v4led_set_i2c_addr(i2c_master_bus_handle_t bus_handle, i2c_master
     lidarlite_v4led_read(*dev_handle, 0x16, data_bytes, 4);
 
     /* Append the desired I2C address to the end of the serial number byte array */
-    data_bytes[4] = newAddress;
+    data_bytes[4] = new_addr;
 
     /* Write the serial number and new address in one 5-byte transaction */
     lidarlite_v4led_write(*dev_handle, 0x16, data_bytes, 5);
@@ -224,10 +224,10 @@ void lidarlite_v4led_set_i2c_addr(i2c_master_bus_handle_t bus_handle, i2c_master
     vTaskDelay(pdMS_TO_TICKS(100));
 
     /* Rebind dev_handle to the new address for the remaining steps */
-    lidarlite_v4led_update_address(bus_handle, dev_handle, newAddress);
+    lidarlite_v4led_update_address(bus_handle, dev_handle, new_addr);
 
     /* If desired, disable default I2C device address (using the new address) */
-    if (disableDefault)
+    if (disable_default)
     {
         data_bytes[0] = 0x01; /* set bit to disable default address */
         lidarlite_v4led_write(*dev_handle, 0x1b, data_bytes, 1);
@@ -309,8 +309,8 @@ uint8_t lidarlite_v4led_get_busy_flag(i2c_master_dev_handle_t dev)
 
   Parameters
   ------------------------------------------------------------------------------
-  triggerPin: digital output pin connected to trigger input of LIDAR-Lite
-  monitorPin: digital input pin connected to monitor output of LIDAR-Lite
+  trigger_pin: digital output pin connected to trigger input of LIDAR-Lite
+  monitor_pin: digital input pin connected to monitor output of LIDAR-Lite
 ------------------------------------------------------------------------------*/
 void lidarlite_v4led_take_range_gpio(gpio_num_t trigger_pin, gpio_num_t monitor_pin)
 {
@@ -350,7 +350,7 @@ void lidarlite_v4led_take_range_gpio(gpio_num_t trigger_pin, gpio_num_t monitor_
 
   Parameters
   ------------------------------------------------------------------------------
-  monitorPin: digital input pin connected to monitor output of LIDAR-Lite
+  monitor_pin: digital input pin connected to monitor output of LIDAR-Lite
 ------------------------------------------------------------------------------*/
 void lidarlite_v4led_wait_for_busy_gpio(gpio_num_t monitor_pin)
 {
@@ -380,7 +380,7 @@ void lidarlite_v4led_wait_for_busy_gpio(gpio_num_t monitor_pin)
 
   Parameters
   ------------------------------------------------------------------------------
-  monitorPin: digital input pin connected to monitor output of LIDAR-Lite
+  monitor_pin: digital input pin connected to monitor output of LIDAR-Lite
 ------------------------------------------------------------------------------*/
 uint8_t lidarlite_v4led_get_busy_flag_gpio(gpio_num_t monitor_pin)
 {
@@ -426,28 +426,28 @@ uint16_t lidarlite_v4led_read_distance(i2c_master_dev_handle_t dev)
 
   Parameters
   ------------------------------------------------------------------------------
-  dev:       device handle
-  regAddr:   register address to write to
-  dataBytes: pointer to array of bytes to write
-  numBytes:  number of bytes in 'dataBytes' array to write (max 31)
+  dev:        device handle
+  reg_addr:   register address to write to
+  data_bytes: pointer to array of bytes to write
+  num_bytes:  number of bytes in 'data_bytes' array to write (max 31)
 ------------------------------------------------------------------------------*/
-esp_err_t lidarlite_v4led_write(i2c_master_dev_handle_t dev, uint8_t regAddr, const uint8_t *dataBytes, uint8_t numBytes)
+esp_err_t lidarlite_v4led_write(i2c_master_dev_handle_t dev, uint8_t reg_addr, const uint8_t *data_bytes, uint8_t num_bytes)
 {
     uint8_t write_buf[I2C_MAX_WRITE_LEN];
 
-    if ((size_t)(numBytes + 1) > sizeof(write_buf))
+    if ((size_t)(num_bytes + 1) > sizeof(write_buf))
     {
         return ESP_ERR_INVALID_SIZE;
     }
 
-    write_buf[0] = regAddr;
-    if (numBytes > 0)
+    write_buf[0] = reg_addr;
+    if (num_bytes > 0)
     {
-        memcpy(&write_buf[1], dataBytes, numBytes);
+        memcpy(&write_buf[1], data_bytes, num_bytes);
     }
 
     /* A failing return code here means the device is not responding. */
-    return i2c_master_transmit(dev, write_buf, numBytes + 1, pdMS_TO_TICKS(I2C_TIMEOUT_MS));
+    return i2c_master_transmit(dev, write_buf, num_bytes + 1, pdMS_TO_TICKS(I2C_TIMEOUT_MS));
 } /* lidarlite_v4led_write */
 
 /*------------------------------------------------------------------------------
@@ -462,19 +462,19 @@ esp_err_t lidarlite_v4led_write(i2c_master_dev_handle_t dev, uint8_t regAddr, co
 
   Parameters
   ------------------------------------------------------------------------------
-  dev:       device handle
-  regAddr:   register address to read from
-  dataBytes: pointer to array to store the bytes read
-  numBytes:  number of bytes to read into 'dataBytes' array
+  dev:        device handle
+  reg_addr:   register address to read from
+  data_bytes: pointer to array to store the bytes read
+  num_bytes:  number of bytes to read into 'data_bytes' array
 ------------------------------------------------------------------------------*/
-esp_err_t lidarlite_v4led_read(i2c_master_dev_handle_t dev, uint8_t regAddr, uint8_t *dataBytes, uint8_t numBytes)
+esp_err_t lidarlite_v4led_read(i2c_master_dev_handle_t dev, uint8_t reg_addr, uint8_t *data_bytes, uint8_t num_bytes)
 {
-    if (numBytes == 0)
+    if (num_bytes == 0)
     {
         return ESP_OK;
     }
 
-    return i2c_master_transmit_receive(dev, &regAddr, 1, dataBytes, numBytes, pdMS_TO_TICKS(I2C_TIMEOUT_MS));
+    return i2c_master_transmit_receive(dev, &reg_addr, 1, data_bytes, num_bytes, pdMS_TO_TICKS(I2C_TIMEOUT_MS));
 } /* lidarlite_v4led_read */
 
 /*------------------------------------------------------------------------------
@@ -496,20 +496,20 @@ esp_err_t lidarlite_v4led_read(i2c_master_dev_handle_t dev, uint8_t regAddr, uin
   Parameters
   ------------------------------------------------------------------------------
   dev:               device handle
-  correlationArray: pointer to memory location to store the correlation record
+  correlation_array: pointer to memory location to store the correlation record
                      ** Two bytes for every correlation value must be
                         allocated by calling function
-  numberOfReadings:  max is 192 (pass 192 for the full record)
+  num_readings:      max is 192 (pass 192 for the full record)
 ------------------------------------------------------------------------------*/
-void lidarlite_v4led_correlation_record_read(i2c_master_dev_handle_t dev, int16_t *correlationArray, uint8_t numberOfReadings)
+void lidarlite_v4led_correlation_record_read(i2c_master_dev_handle_t dev, int16_t *correlation_array, uint8_t num_readings)
 {
     uint8_t  i;
     int16_t  correlation_value;
     uint8_t *data_bytes = (uint8_t *) &correlation_value;
 
-    for (i = 0; i < numberOfReadings; i++)
+    for (i = 0; i < num_readings; i++)
     {
         lidarlite_v4led_read(dev, 0x52, data_bytes, 2);
-        correlationArray[i] = correlation_value;
+        correlation_array[i] = correlation_value;
     }
 } /* lidarlite_v4led_correlation_record_read */
