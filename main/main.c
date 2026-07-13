@@ -8,6 +8,8 @@
 #include "esp_err.h"
 #include "esp_log.h"
 
+#define SDA_PIN GPIO_NUM_16
+#define SCL_PIN GPIO_NUM_17
 #define TRIGGER_PIN GPIO_NUM_5
 #define MONITOR_PIN GPIO_NUM_33
 
@@ -35,8 +37,8 @@ void app_main(void)
     i2c_master_bus_config_t i2c_mst_config = {
         .clk_source = I2C_CLK_SRC_DEFAULT,
         .i2c_port = I2C_NUM_0,
-        .scl_io_num = GPIO_NUM_22,
-        .sda_io_num = GPIO_NUM_21,
+        .scl_io_num = SCL_PIN,
+        .sda_io_num = SDA_PIN,
         .glitch_ignore_cnt = 7,
         .flags.enable_internal_pullup = true,
     };
