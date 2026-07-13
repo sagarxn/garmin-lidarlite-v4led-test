@@ -17,20 +17,12 @@
 
 static const char *TAG = "[main]";
 
-i2c_master_bus_handle_t bus_handle;
-i2c_master_dev_handle_t dev_handle;
+static i2c_master_bus_handle_t gp_s_bus_handle;
+static i2c_master_dev_handle_t gp_s_dev_handle;
 
+static void loop(void *arg);
 static void take_range(void);
 static void take_range_gpio(void);
-
-static void loop(void *arg)
-{
-    while (1)
-    {
-        take_range();
-        vTaskDelay(pdMS_TO_TICKS(1000));
-    }
-}
 
 void app_main(void)
 {
@@ -43,8 +35,8 @@ void app_main(void)
         .flags.enable_internal_pullup = true,
     };
 
-    ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_mst_config, &bus_handle));
-    ESP_ERROR_CHECK(lidarlite_v4led_init(bus_handle, &dev_handle, 0x62));
+    ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_mst_config, &gp_s_bus_handle));
+    ESP_ERROR_CHECK(lidarlite_v4led_init(gp_s_bus_handle, &gp_s_dev_handle, 0x62));
 
     gpio_config_t io_conf = {
         .pin_bit_mask = (1ULL << TRIGGER_PIN),
@@ -68,18 +60,27 @@ void app_main(void)
     xTaskCreate(loop, "loop", 4096, NULL, 5, NULL);
 }
 
+static void loop(void *arg)
+{
+    while (1)
+    {
+        take_range();
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+}
+
 static void take_range(void)
 {
-    lidarlite_v4led_take_range(dev_handle);
-    lidarlite_v4led_wait_for_busy(dev_handle);
-    uint16_t distance_cm = lidarlite_v4led_read_distance(dev_handle);
+    lidarlite_v4led_take_range(gp_s_dev_handle);
+    lidarlite_v4led_wait_for_busy(gp_s_dev_handle);
+    uint16_t distance_cm = lidarlite_v4led_read_distance(gp_s_dev_handle);
     ESP_LOGI(TAG, "Distance: %d cm", distance_cm);
 }
 
 static void take_range_gpio(void)
 {
     lidarlite_v4led_take_range_gpio(TRIGGER_PIN, MONITOR_PIN);
-    lidarlite_v4led_wait_for_busy(dev_handle);
-    uint16_t distance_cm = lidarlite_v4led_read_distance(dev_handle);
+    lidarlite_v4led_wait_for_busy(gp_s_dev_handle);
+    uint16_t distance_cm = lidarlite_v4led_read_distance(gp_s_dev_handle);
     ESP_LOGI(TAG, "Distance: %d cm", distance_cm);
 }
