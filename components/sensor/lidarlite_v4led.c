@@ -36,7 +36,6 @@
 
 #define I2C_TIMEOUT_MS          1000
 #define I2C_DEV_SCL_HZ          400000
-#define I2C_MAX_WRITE_LEN       16      /* reg addr byte + up to 15 data bytes */
 
 static const char *TAG = "[lidarlite_v4led]";
 
@@ -271,15 +270,14 @@ void lidarlite_v4led_take_range(i2c_master_dev_handle_t dev)
 void lidarlite_v4led_wait_for_busy(i2c_master_dev_handle_t dev, uint32_t timeout_ms)
 {
     uint8_t busy_flag;
-    uint32_t timeout_counter = 0;
+    uint32_t timer_start = xTaskGetTickCount();
 
     do
     {
         busy_flag = lidarlite_v4led_get_busy_flag(dev);
         vTaskDelay(pdMS_TO_TICKS(1));
-        timeout_counter++;
 
-        if (timeout_counter >= timeout_ms)
+        if ((xTaskGetTickCount() - timer_start) >= pdMS_TO_TICKS(timeout_ms))
         {
             ESP_LOGW(TAG, "Timeout waiting for busy flag to go LOW!\n");
             break;
@@ -335,7 +333,7 @@ void lidarlite_v4led_take_range_gpio(gpio_num_t trigger_pin, gpio_num_t monitor_
         gpio_set_level(trigger_pin, 1);
     }
 
-    uint32_t timeout_counter = 0;
+    uint32_t timer_start = xTaskGetTickCount();
 
     // When LLv4 receives trigger command it will drive monitor pin low.
     // Wait for LLv4 to acknowledge receipt of command before moving on.
@@ -344,8 +342,7 @@ void lidarlite_v4led_take_range_gpio(gpio_num_t trigger_pin, gpio_num_t monitor_
         busy_flag = lidarlite_v4led_get_busy_flag_gpio(monitor_pin);
         vTaskDelay(pdMS_TO_TICKS(1));
         
-        timeout_counter++;
-        if (timeout_counter >= timeout_ms)
+        if ((xTaskGetTickCount() - timer_start) >= pdMS_TO_TICKS(timeout_ms))
         {
             ESP_LOGW(TAG, "Timeout waiting for busy flag to go HIGH!\n");
             break;
@@ -366,15 +363,14 @@ void lidarlite_v4led_take_range_gpio(gpio_num_t trigger_pin, gpio_num_t monitor_
 void lidarlite_v4led_wait_for_busy_gpio(gpio_num_t monitor_pin, uint32_t timeout_ms)
 {
     uint8_t busy_flag;
-    uint32_t timeout_counter = 0;
+    uint32_t timer_start = xTaskGetTickCount();
 
     do
     {
         busy_flag = lidarlite_v4led_get_busy_flag_gpio(monitor_pin);
         vTaskDelay(pdMS_TO_TICKS(1));
 
-        timeout_counter++;
-        if (timeout_counter >= timeout_ms)
+        if ((xTaskGetTickCount() - timer_start) >= pdMS_TO_TICKS(timeout_ms))
         {
             ESP_LOGW(TAG, "Timeout waiting for busy flag to go LOW!\n");
             break;
@@ -444,12 +440,7 @@ uint16_t lidarlite_v4led_read_distance(i2c_master_dev_handle_t dev)
 ------------------------------------------------------------------------------*/
 esp_err_t lidarlite_v4led_write(i2c_master_dev_handle_t dev, uint8_t reg_addr, const uint8_t *data_bytes, uint8_t num_bytes)
 {
-    uint8_t write_buf[I2C_MAX_WRITE_LEN];
-
-    if ((size_t)(num_bytes + 1) > sizeof(write_buf))
-    {
-        return ESP_ERR_INVALID_SIZE;
-    }
+    uint8_t *write_buf = malloc(num_bytes + 1);
 
     write_buf[0] = reg_addr;
     if (num_bytes > 0)
@@ -458,7 +449,11 @@ esp_err_t lidarlite_v4led_write(i2c_master_dev_handle_t dev, uint8_t reg_addr, c
     }
 
     /* A failing return code here means the device is not responding. */
-    return i2c_master_transmit(dev, write_buf, num_bytes + 1, pdMS_TO_TICKS(I2C_TIMEOUT_MS));
+    esp_err_t ret = i2c_master_transmit(dev, write_buf, num_bytes + 1, pdMS_TO_TICKS(I2C_TIMEOUT_MS));
+    
+    free(write_buf);
+
+    return ret;
 } /* lidarlite_v4led_write */
 
 /*------------------------------------------------------------------------------
