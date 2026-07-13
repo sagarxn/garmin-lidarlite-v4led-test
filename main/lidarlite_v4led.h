@@ -1,12 +1,13 @@
 /*------------------------------------------------------------------------------
 
-  LIDARLite_v4LED ESP IDF Driver
+  Garmin Lidar-Lite V4 LED ESP-IDF Driver
   lidarlite_v4led.h
 
   This library is port of the Garmin LIDARLite_v4LED Arduino library to ESP-IDF,
   using the new i2c_master.h bus/device driver API.
 
-  Copyright (c) 2019 Garmin Ltd. or its subsidiaries.
+  Original Copyright (c) 2019 Garmin Ltd. or its subsidiaries.
+  Modified on July 13, 2026 by Sagar Chaudhary for ESP-IDF
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
