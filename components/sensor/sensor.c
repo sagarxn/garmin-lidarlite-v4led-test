@@ -10,8 +10,8 @@
 #include "board.h"
 #include "lidarlite_v4led.h"
 
-#define TIMER_PERIOD_MS             2000UL
-#define LIDAR_BUSY_WAIT_TIMEOUT_MS  1000UL
+#define TIMER_PERIOD_MS             1000UL
+#define LIDAR_BUSY_WAIT_TIMEOUT_MS  500UL
 
 const char *TAG = "[sensor]";
 
@@ -64,7 +64,7 @@ static void _read_task(void *pvParameters)
 
     while (1)
     {
-        // xTaskNotifyWait(0, 0, NULL, portMAX_DELAY);
+        xTaskNotifyWait(0, 0, NULL, portMAX_DELAY);
         _read_sensor(); 
     }
 }
@@ -85,6 +85,6 @@ static void _read_sensor(void)
 
     uint16_t distance_cm = lidarlite_v4led_read_distance(lidar_i2c_dev_handle);
     uint32_t period_ms = pdTICKS_TO_MS(xTaskGetTickCount() - start_time);
-    
+
     ESP_LOGI(TAG, "Distance: %d cm, Period: %lu ms", distance_cm, period_ms);
 }
