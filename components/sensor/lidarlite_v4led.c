@@ -124,7 +124,7 @@ esp_err_t lidarlite_v4led_update_address(i2c_master_bus_handle_t bus_handle, i2c
   Parameters
   ------------------------------------------------------------------------------
   dev: device handle
-  configuration:
+  config:
     0: Maximum range. Uses maximum acquisition count.
     1: Balanced performance.
     2: Short range, high speed. Reduces maximum acquisition count.

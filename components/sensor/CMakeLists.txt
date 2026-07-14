@@ -6,7 +6,8 @@ set(includes
     "include")
 
 set(requires
-    board)
+    board
+    storage)
 
 idf_component_register(SRCS ${sources}
                        INCLUDE_DIRS ${includes}
