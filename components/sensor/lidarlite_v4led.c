@@ -433,7 +433,7 @@ uint16_t lidarlite_v4led_read_distance(i2c_master_dev_handle_t dev)
 ------------------------------------------------------------------------------*/
 uint8_t lidarlite_v4led_read_sensitivity(i2c_master_dev_handle_t dev)
 {
-    uint8_t  sensitivity = 0;
+    uint8_t sensitivity = 0;
 
     /* Read one byte from register 0x1C */
     lidarlite_v4led_read(dev, 0x1C, &sensitivity, 1);
@@ -452,10 +452,10 @@ uint8_t lidarlite_v4led_read_sensitivity(i2c_master_dev_handle_t dev)
 ------------------------------------------------------------------------------*/
 uint8_t lidarlite_v4led_read_temperature(i2c_master_dev_handle_t dev)
 {
-    uint8_t  temperature = 0;
+    uint8_t temperature = 0;
 
-    /* Read one byte from register 0x1E */
-    lidarlite_v4led_read(dev, 0x1E, &temperature, 1);
+    /* Read one byte from register 0xE0 */
+    lidarlite_v4led_read(dev, 0xE0, &temperature, 1);
 
     return temperature;
 } /* lidarlite_v4led_read_temperature */

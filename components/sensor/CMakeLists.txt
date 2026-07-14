@@ -7,7 +7,9 @@ set(includes
 
 set(requires
     board
-    storage)
+    storage
+    wscada
+    util)
 
 idf_component_register(SRCS ${sources}
                        INCLUDE_DIRS ${includes}

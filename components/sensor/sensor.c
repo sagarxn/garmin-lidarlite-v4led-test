@@ -14,8 +14,10 @@
 #include "board.h"
 #include "lidarlite_v4led.h"
 #include "storage.h"
+#include "util.h"
+#include "wscada.h"
 
-#define TIMER_PERIOD_MS             1000UL
+#define TIMER_PERIOD_MS             60UL * 1000UL /* 1 minute */
 #define LIDAR_BUSY_WAIT_TIMEOUT_MS  500UL
 
 static const char *TAG = "[sensor]";
@@ -100,6 +102,9 @@ static void _read_sensor(void)
 
     uint16_t distance_cm = lidarlite_v4led_read_distance(ps_lidar_i2c_dev_handle);
     uint32_t period_ms = pdTICKS_TO_MS(xTaskGetTickCount() - start_time);
+    
+    uint32_t fat32_time = util_tm_to_fat32_time(&timeinfo_now);
+    float distance_m = distance_cm / 100.0f;
 
     FILE *f = fopen(LITTLEFS_MOUNT_POINT "/lidar_data.csv", "a");
     if (f == NULL)
@@ -109,8 +114,10 @@ static void _read_sensor(void)
     }
 
     // Current time, measurement period in ms, lidar distance in m
-    fprintf(f, "%s,%lu,%.2f\n", str_now, period_ms, distance_cm / 100.0f);
-    ESP_LOGI(TAG, "%s, %lu, %.2f", str_now, period_ms, distance_cm / 100.0f);
+    fprintf(f, "%s,%lu,%.2f\n", str_now, period_ms, distance_m);
+    ESP_LOGI(TAG, "%s, %lu, %.2f", str_now, period_ms, distance_m);
+
+    wscada_v1_post_lidar(fat32_time, period_ms, distance_m);
 
     fclose(f);
 }
