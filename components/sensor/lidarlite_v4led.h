@@ -41,6 +41,8 @@ esp_err_t lidarlite_v4led_update_address(i2c_master_bus_handle_t bus_handle, i2c
 void lidarlite_v4led_configure(i2c_master_dev_handle_t dev, uint8_t config);
 void lidarlite_v4led_set_i2c_addr(i2c_master_bus_handle_t bus_handle, i2c_master_dev_handle_t *dev_handle, uint8_t new_addr, uint8_t disable_default);
 uint16_t lidarlite_v4led_read_distance(i2c_master_dev_handle_t dev);
+uint8_t lidarlite_v4led_read_sensitivity(i2c_master_dev_handle_t dev);
+uint8_t lidarlite_v4led_read_temperature(i2c_master_dev_handle_t dev);
 void lidarlite_v4led_wait_for_busy(i2c_master_dev_handle_t dev, uint32_t timeout_ms);
 uint8_t lidarlite_v4led_get_busy_flag(i2c_master_dev_handle_t dev);
 void lidarlite_v4led_take_range(i2c_master_dev_handle_t dev);

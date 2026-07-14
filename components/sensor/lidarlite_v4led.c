@@ -423,6 +423,44 @@ uint16_t lidarlite_v4led_read_distance(i2c_master_dev_handle_t dev)
 } /* lidarlite_v4led_read_distance */
 
 /*------------------------------------------------------------------------------
+  Read Sensitivity
+
+  Read and return the sensitivity setting of the device.
+
+  Parameters
+  ------------------------------------------------------------------------------
+  dev: device handle
+------------------------------------------------------------------------------*/
+uint8_t lidarlite_v4led_read_sensitivity(i2c_master_dev_handle_t dev)
+{
+    uint8_t  sensitivity = 0;
+
+    /* Read one byte from register 0x1C */
+    lidarlite_v4led_read(dev, 0x1C, &sensitivity, 1);
+
+    return sensitivity;
+} /* lidarlite_v4led_read_sensitivity */
+
+/*------------------------------------------------------------------------------
+  Read Temperature
+
+  Read and return the temperature of the device.
+
+  Parameters
+  ------------------------------------------------------------------------------
+  dev: device handle
+------------------------------------------------------------------------------*/
+uint8_t lidarlite_v4led_read_temperature(i2c_master_dev_handle_t dev)
+{
+    uint8_t  temperature = 0;
+
+    /* Read one byte from register 0x1E */
+    lidarlite_v4led_read(dev, 0x1E, &temperature, 1);
+
+    return temperature;
+} /* lidarlite_v4led_read_temperature */
+
+/*------------------------------------------------------------------------------
   Write
 
   Perform I2C write to device. The I2C peripheral in the LidarLite v4 LED
