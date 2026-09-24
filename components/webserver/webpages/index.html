@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Garmin LidarLite V4 Led</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <header class="navbar d-md-none"></header>
+
+    <div class="container-fluid">
+        <div class="main-layout-container">
+            
+            <nav id="sidebarMenu" class="sidebar"></nav>
+
+            <main class="content-workspace main-wrapper">
+                <div class="max-w-content-pane">
+                    
+                    <div class="card">
+                        <div class="card-header">
+                            <img src="/icons/microchip.svg" class="card-header-icon" alt="System Icon">
+                            <h2 class="h6 m-0 fw-bold text-uppercase">System Information</h2>
+                        </div>
+                        <div class="card-body">
+                            <div class="g-3">
+                                <div class="col-sm-6"><div class="info-item-box"><span class="info-label">Product Name</span><span id="info_product" class="info-value">—</span></div></div>
+                                <div class="col-sm-6"><div class="info-item-box"><span class="info-label">Hardware MAC Address</span><span id="info_mac" class="info-value">—</span></div></div>
+                                <div class="col-sm-6"><div class="info-item-box"><span class="info-label">Local IP Address</span><span id="info_ip" class="info-value">—</span></div></div>
+                                <div class="col-sm-6"><div class="info-item-box"><span class="info-label">Firmware Build</span><span id="info_firmware" class="info-value">—</span></div></div>
+                                <div class="col-heap-info"><div class="info-item-box"><span class="info-label">Available Free Memory Heap</span><span id="info_heap" class="info-value">—</span></div></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card-footer-actions mb-3">
+                        <button type="button" class="btn btn-reboot" onclick="triggerHardwareRestart()">
+                            <img src="/icons/reboot.svg" alt="">
+                            <span>Restart</span>
+                        </button>
+                    </div>
+
+                </div>
+
+                <footer class="card-footer"></footer>
+            </main>
+
+        </div>
+    </div>
+    <script src="/script.js"></script>
+</body>
+</html>

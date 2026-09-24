@@ -1,6 +1,7 @@
 set(sources
     "sensor.c"
-    "lidarlite_v4led.c")
+    "lidarlite_v4led.c"
+    "lidar_lite.c")
 
 set(includes
     "include")

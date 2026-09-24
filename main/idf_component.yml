@@ -16,3 +16,4 @@ dependencies:
   #   public: true
   joltwallet/littlefs: ^1.22.2
   espressif/cjson: ^1.7.19~2
+  espressif/cbor: ^0.6.1~4

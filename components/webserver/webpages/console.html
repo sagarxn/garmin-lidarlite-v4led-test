@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Garmin LidarLite V4 LED - Terminal</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <header class="navbar d-md-none"></header>
+
+    <div class="container-fluid">
+        <div class="main-layout-container">
+            
+            <nav id="sidebarMenu" class="sidebar"></nav>
+
+            <main class="content-workspace main-wrapper">
+                <div class="max-w-content-pane">
+                    
+                    <div id="alertContainer"></div>
+
+                    <!-- Terminal Card -->
+                    <div class="card">
+                        <div class="card-header">
+                            <img src="/icons/terminal.svg" class="card-header-icon" alt="Terminal Icon">
+                            <h2 class="h6 m-0 fw-bold text-uppercase">Serial Console Terminal</h2>
+                        </div>
+                        <div class="card-body">
+                            
+                            <!-- Terminal Controls -->
+                            <div class="terminal-toolbar mb-3">
+                                <div class="terminal-status-group">
+                                    <span id="terminalStatusBadge" class="status-badge status-disconnected">
+                                        <span class="status-dot"></span>
+                                        <span id="terminalStatusText">Disconnected</span>
+                                    </span>
+                                </div>
+                                <div class="terminal-btn-group">
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="toggleAutoScroll()">
+                                        <span id="autoScrollLabel">Auto-scroll: ON</span>
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="clearTerminal()">Clear</button>
+                                    <button type="button" class="btn btn-dark-edge btn-sm" id="btnConnect" onclick="toggleTerminalConnection()">Connect</button>
+                                </div>
+                            </div>
+
+                            <!-- Terminal Display Box -->
+                            <div id="terminalConsole" class="terminal-console-box"></div>
+
+                            <!-- Terminal Input Form -->
+                            <form id="terminalInputForm" class="input-group mt-3">
+                                <input type="text" id="terminalInput" class="form-control terminal-input" placeholder="Type command or serial input..." autocomplete="off">
+                                <button type="submit" class="btn btn-dark-edge">Send</button>
+                            </form>
+
+                        </div>
+                    </div>
+
+                </div>
+
+                <footer class="card-footer"></footer>
+            </main>
+
+        </div>
+    </div>
+    <script src="/script.js"></script>
+</body>
+</html>

@@ -4,7 +4,7 @@
 #include "esp_log.h"
 
 #include "wifi.h"
-#include "cm_sntp.h"
+#include "time_sync.h"
 
 static const char *TAG = "[cm]";
 
@@ -20,7 +20,7 @@ esp_err_t cm_init(void)
         goto exit;
     }
     
-    status = cm_sntp_init();
+    status = time_sync_init();
     if (status != ESP_OK)
     {
         ESP_LOGE(TAG, "Failed to initialize SNTP: %s", esp_err_to_name(status));

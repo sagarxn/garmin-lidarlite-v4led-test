@@ -88,33 +88,61 @@ esp_err_t lidarlite_v4led_deinit(i2c_master_dev_handle_t dev_handle)
   dev_handle:  pointer to the device handle to rebind
   new_addr:    I2C address to rebind this handle to
 ------------------------------------------------------------------------------*/
-esp_err_t lidarlite_v4led_update_address(i2c_master_bus_handle_t bus_handle, i2c_master_dev_handle_t *dev_handle, uint8_t new_addr)
+esp_err_t lidarlite_v4led_update_address(i2c_master_bus_handle_t bus, i2c_master_dev_handle_t *dev, uint8_t new_addr)
 {
     esp_err_t ret;
-    i2c_master_dev_handle_t new_dev_handle;
+    i2c_master_dev_handle_t new_dev;
     i2c_device_config_t dev_cfg = {
         .dev_addr_length = I2C_ADDR_BIT_LEN_7,
         .device_address  = new_addr,
         .scl_speed_hz    = I2C_DEV_SCL_HZ,
     };
 
-    ret = i2c_master_bus_add_device(bus_handle, &dev_cfg, &new_dev_handle);
+    ret = i2c_master_bus_add_device(bus, &dev_cfg, &new_dev);
     if (ret != ESP_OK)
     {
-        return ret;
+        goto exit;
     }
 
-    ret = i2c_master_bus_rm_device(*dev_handle);
+    ret = i2c_master_bus_rm_device(*dev);
     if (ret != ESP_OK)
     {
-        i2c_master_bus_rm_device(new_dev_handle);
-        return ret;
+        i2c_master_bus_rm_device(new_dev);
+        goto exit;
     }
 
-    *dev_handle = new_dev_handle;
+    *dev = new_dev;
 
-    return ESP_OK;
+exit:
+    return ret;
 } /* lidarlite_v4led_update_address */
+
+/**
+ * Reset the LIDAR-Lite device to factory defaults. This will reset the I2C address to the default value of 0x62.
+ *
+ * Parameters
+ * ------------------------------------------------------------------------------
+ * dev: device handle
+ */
+esp_err_t lidarlite_v4led_reset(i2c_master_bus_handle_t bus, i2c_master_dev_handle_t *dev)
+{
+    uint8_t reset_cmd = 0x00;
+    esp_err_t ret = lidarlite_v4led_write(*dev, 0x00, &reset_cmd, 1);
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to reset LIDAR-Lite device: %s", esp_err_to_name(ret));
+        goto exit;
+    }
+
+    ret = lidarlite_v4led_update_address(bus, dev, LIDARLITE_ADDR_DEFAULT);
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to update LIDAR-Lite device address: %s", esp_err_to_name(ret));
+    }
+
+exit:
+    return ret;
+} /* lidarlite_v4led_reset */
 
 /*------------------------------------------------------------------------------
   Configure
@@ -138,7 +166,7 @@ esp_err_t lidarlite_v4led_update_address(i2c_master_bus_handle_t bus_handle, i2c
          acquisition count to a minimum for faster rep rates on very
          close targets with high error.
 ------------------------------------------------------------------------------*/
-void lidarlite_v4led_configure(i2c_master_dev_handle_t dev, uint8_t config)
+esp_err_t lidarlite_v4led_configure(i2c_master_dev_handle_t dev, uint8_t config)
 {
     uint8_t sig_count_max;
     uint8_t acq_config_reg;
@@ -181,16 +209,24 @@ void lidarlite_v4led_configure(i2c_master_dev_handle_t dev, uint8_t config)
             break;
     }
 
-    lidarlite_v4led_write(dev, 0x05, &sig_count_max , 1);
-    lidarlite_v4led_write(dev, 0xE5, &acq_config_reg, 1);
+    esp_err_t ret = lidarlite_v4led_write(dev, 0x05, &sig_count_max , 1);
+    if (ret != ESP_OK)
+    {
+        goto exit;
+    }
+
+    ret = lidarlite_v4led_write(dev, 0xE5, &acq_config_reg, 1);
+
+exit:
+    return ret;
 } /* lidarlite_v4led_configure */
 
 /*------------------------------------------------------------------------------
   Set I2C Address
 
   Set Alternate I2C Device Address. See Operation Manual for additional info.
-  Internally rebinds *dev_handle to newAddress partway through (via
-  lidarlite_v4led_update_address) once the device has actually switched.
+  Disables the default address space first if requested, ensures the internal
+  flash sequence binds properly, then rebinds the master driver handle.
 
   Parameters
   ------------------------------------------------------------------------------
@@ -201,44 +237,75 @@ void lidarlite_v4led_configure(i2c_master_dev_handle_t dev, uint8_t config)
   disable_default: a non-zero value here means the default 0x62 I2C device
     address will be disabled.
 ------------------------------------------------------------------------------*/
-void lidarlite_v4led_set_i2c_addr(i2c_master_bus_handle_t bus_handle, i2c_master_dev_handle_t *dev_handle, uint8_t new_addr, uint8_t disable_default)
+esp_err_t lidarlite_v4led_set_i2c_addr(i2c_master_bus_handle_t bus_handle, i2c_master_dev_handle_t *dev_handle, uint8_t new_addr, uint8_t disable_default)
 {
     uint8_t data_bytes[5];
+    esp_err_t ret;
 
-    /* Enable flash storage */
+    /* Open the Flash writing configuration state window */
     data_bytes[0] = 0x11;
-    lidarlite_v4led_write(*dev_handle, 0xEA, data_bytes, 1);
+    ret = lidarlite_v4led_write(*dev_handle, 0xEA, data_bytes, 1);
+    if (ret != ESP_OK)
+    {
+        ESP_LOGW(TAG, "Failed to enable flash storage: %s", esp_err_to_name(ret));
+        goto exit;
+    }
     vTaskDelay(pdMS_TO_TICKS(100));
 
-    /* Read 4-byte device serial number */
-    lidarlite_v4led_read(*dev_handle, 0x16, data_bytes, 4);
-
-    /* Append the desired I2C address to the end of the serial number byte array */
-    data_bytes[4] = new_addr;
-
-    /* Write the serial number and new address in one 5-byte transaction */
-    lidarlite_v4led_write(*dev_handle, 0x16, data_bytes, 5);
-
-    /* Wait for the I2C peripheral to be restarted with new device address */
-    vTaskDelay(pdMS_TO_TICKS(100));
-
-    /* Rebind dev_handle to the new address for the remaining steps */
-    lidarlite_v4led_update_address(bus_handle, dev_handle, new_addr);
-
-    /* If desired, disable default I2C device address (using the new address) */
+    /* If requested, toggle off default response behavior BEFORE address swap */
     if (disable_default)
     {
-        data_bytes[0] = 0x01; /* set bit to disable default address */
-        lidarlite_v4led_write(*dev_handle, 0x1b, data_bytes, 1);
-
-        /* Wait for the I2C peripheral to be restarted with new device address */
-        vTaskDelay(pdMS_TO_TICKS(100));
+        data_bytes[0] = 0x01; /* Set the bit to disable default response at 0x62 */
+        ret = lidarlite_v4led_write(*dev_handle, 0x1B, data_bytes, 1);
+        if (ret != ESP_OK)
+        {
+            ESP_LOGW(TAG, "Failed to write 0x1B default bypass register: %s", esp_err_to_name(ret));
+            goto exit;
+        }
+        vTaskDelay(pdMS_TO_TICKS(50));
     }
 
-    /* Disable flash storage */
-    data_bytes[0] = 0;
-    lidarlite_v4led_write(*dev_handle, 0xEA, data_bytes, 1);
-    vTaskDelay(pdMS_TO_TICKS(100));
+    /* Read the 4-byte unique device serial number hardware layout */
+    ret = lidarlite_v4led_read(*dev_handle, 0x16, data_bytes, 4);
+    if (ret != ESP_OK)
+    {
+        ESP_LOGW(TAG, "Failed to read device serial number: %s", esp_err_to_name(ret));
+        goto exit;
+    }
+
+    /* Append desired new address as the 5th byte element */
+    data_bytes[4] = new_addr;
+
+    /* Issue the block configuration write to burn the secondary address target */
+    ret = lidarlite_v4led_write(*dev_handle, 0x16, data_bytes, 5);
+    if (ret != ESP_OK)
+    {
+        ESP_LOGW(TAG, "Failed to write serial number and new address: %s", esp_err_to_name(ret));
+        goto exit;
+    }
+
+    /* Close the Flash writing loop using the original handle address config */
+    data_bytes[0] = 0x00;
+    ret = lidarlite_v4led_write(*dev_handle, 0xEA, data_bytes, 1);
+    if (ret != ESP_OK)
+    {
+        ESP_LOGW(TAG, "Failed to disable flash storage: %s", esp_err_to_name(ret));
+        goto exit;
+    }
+
+    /* Give the MCU internal hardware time to fully reboot its hardware peripheral layer */
+    vTaskDelay(pdMS_TO_TICKS(150));
+
+    /* Rebind ESP32 master peripheral runtime pointer context to the new address space */
+    ret = lidarlite_v4led_update_address(bus_handle, dev_handle, new_addr);
+    if (ret != ESP_OK)
+    {
+        ESP_LOGW(TAG, "Failed to update driver runtime handle target address: %s", esp_err_to_name(ret));
+        goto exit;
+    }
+
+exit:
+    return ret;
 } /* lidarlite_v4led_set_i2c_addr */
 
 /*------------------------------------------------------------------------------
@@ -250,11 +317,11 @@ void lidarlite_v4led_set_i2c_addr(i2c_master_bus_handle_t bus_handle, i2c_master
   ------------------------------------------------------------------------------
   dev: device handle
 ------------------------------------------------------------------------------*/
-void lidarlite_v4led_take_range(i2c_master_dev_handle_t dev)
+esp_err_t lidarlite_v4led_take_range(i2c_master_dev_handle_t dev)
 {
     uint8_t data_byte = 0x04;
 
-    lidarlite_v4led_write(dev, 0x00, &data_byte, 1);
+    return lidarlite_v4led_write(dev, 0x00, &data_byte, 1);
 } /* lidarlite_v4led_take_range */
 
 /*------------------------------------------------------------------------------
@@ -267,8 +334,9 @@ void lidarlite_v4led_take_range(i2c_master_dev_handle_t dev)
   dev: device handle
   timeout_ms: timeout in milliseconds
 ------------------------------------------------------------------------------*/
-void lidarlite_v4led_wait_for_busy(i2c_master_dev_handle_t dev, uint32_t timeout_ms)
+esp_err_t lidarlite_v4led_wait_for_busy(i2c_master_dev_handle_t dev, uint32_t timeout_ms)
 {
+    esp_err_t ret = ESP_OK;
     uint8_t busy_flag;
     uint32_t timer_start = xTaskGetTickCount();
 
@@ -279,11 +347,13 @@ void lidarlite_v4led_wait_for_busy(i2c_master_dev_handle_t dev, uint32_t timeout
 
         if ((xTaskGetTickCount() - timer_start) >= pdMS_TO_TICKS(timeout_ms))
         {
+            ret = ESP_ERR_TIMEOUT;
             ESP_LOGW(TAG, "Timeout waiting for busy flag to go LOW!\n");
             break;
         }
     } while (busy_flag);
 
+    return ret;
 } /* lidarlite_v4led_wait_for_busy */
 
 /*------------------------------------------------------------------------------
@@ -320,8 +390,9 @@ uint8_t lidarlite_v4led_get_busy_flag(i2c_master_dev_handle_t dev)
   monitor_pin: digital input pin connected to monitor output of LIDAR-Lite
   timeout_ms: timeout in milliseconds
 ------------------------------------------------------------------------------*/
-void lidarlite_v4led_take_range_gpio(gpio_num_t trigger_pin, gpio_num_t monitor_pin, uint32_t timeout_ms)
+esp_err_t lidarlite_v4led_take_range_gpio(gpio_num_t trigger_pin, gpio_num_t monitor_pin, uint32_t timeout_ms)
 {
+    esp_err_t ret = ESP_OK;
     uint8_t busy_flag;
 
     if (gpio_get_level(trigger_pin))
@@ -344,10 +415,13 @@ void lidarlite_v4led_take_range_gpio(gpio_num_t trigger_pin, gpio_num_t monitor_
         
         if ((xTaskGetTickCount() - timer_start) >= pdMS_TO_TICKS(timeout_ms))
         {
+            ret = ESP_ERR_TIMEOUT;
             ESP_LOGW(TAG, "Timeout waiting for busy flag to go HIGH!\n");
             break;
         }
     } while (!busy_flag);
+
+    return ret;
 } /* lidarlite_v4led_take_range_gpio */
 
 /*------------------------------------------------------------------------------
@@ -360,8 +434,9 @@ void lidarlite_v4led_take_range_gpio(gpio_num_t trigger_pin, gpio_num_t monitor_
   monitor_pin: digital input pin connected to monitor output of LIDAR-Lite
   timeout_ms: timeout in milliseconds
 ------------------------------------------------------------------------------*/
-void lidarlite_v4led_wait_for_busy_gpio(gpio_num_t monitor_pin, uint32_t timeout_ms)
+esp_err_t lidarlite_v4led_wait_for_busy_gpio(gpio_num_t monitor_pin, uint32_t timeout_ms)
 {
+    esp_err_t ret = ESP_OK;
     uint8_t busy_flag;
     uint32_t timer_start = xTaskGetTickCount();
 
@@ -372,12 +447,14 @@ void lidarlite_v4led_wait_for_busy_gpio(gpio_num_t monitor_pin, uint32_t timeout
 
         if ((xTaskGetTickCount() - timer_start) >= pdMS_TO_TICKS(timeout_ms))
         {
+            ret = ESP_ERR_TIMEOUT;
             ESP_LOGW(TAG, "Timeout waiting for busy flag to go LOW!\n");
             break;
         }
 
     } while (busy_flag);
 
+    return ret;
 } /* lidarlite_v4led_wait_for_busy_gpio */
 
 /*------------------------------------------------------------------------------
@@ -409,37 +486,27 @@ uint8_t lidarlite_v4led_get_busy_flag_gpio(gpio_num_t monitor_pin)
 
   Parameters
   ------------------------------------------------------------------------------
-  dev: device handle
+  dev:      device handle
+  distance: pointer to variable to store distance
 ------------------------------------------------------------------------------*/
-uint16_t lidarlite_v4led_read_distance(i2c_master_dev_handle_t dev)
+esp_err_t lidarlite_v4led_read_distance(i2c_master_dev_handle_t dev, uint16_t *distance)
 {
-    uint16_t  distance = 0;
-    uint8_t  *data_bytes = (uint8_t *) &distance;
+    esp_err_t ret = ESP_OK;
 
-    /* Read two bytes from registers 0x10 and 0x11 */
-    lidarlite_v4led_read(dev, 0x10, data_bytes, 2);
+    if (distance == NULL)
+    {
+        ret = ESP_ERR_INVALID_ARG;
+    }
+    else
+    {
+        *distance = 0;
+        /* Read two bytes from register 0x10 and 0x11 */
+        ret =  lidarlite_v4led_read(dev, 0x10, (uint8_t *)distance, 2);
+    }
 
-    return distance;
+    return ret;
 } /* lidarlite_v4led_read_distance */
 
-/*------------------------------------------------------------------------------
-  Read Sensitivity
-
-  Read and return the sensitivity setting of the device.
-
-  Parameters
-  ------------------------------------------------------------------------------
-  dev: device handle
-------------------------------------------------------------------------------*/
-uint8_t lidarlite_v4led_read_sensitivity(i2c_master_dev_handle_t dev)
-{
-    uint8_t sensitivity = 0;
-
-    /* Read one byte from register 0x1C */
-    lidarlite_v4led_read(dev, 0x1C, &sensitivity, 1);
-
-    return sensitivity;
-} /* lidarlite_v4led_read_sensitivity */
 
 /*------------------------------------------------------------------------------
   Read Temperature
@@ -448,17 +515,68 @@ uint8_t lidarlite_v4led_read_sensitivity(i2c_master_dev_handle_t dev)
 
   Parameters
   ------------------------------------------------------------------------------
-  dev: device handle
+  dev:          device handle
+  temperature:  pointer to variable to store temperature
 ------------------------------------------------------------------------------*/
-uint8_t lidarlite_v4led_read_temperature(i2c_master_dev_handle_t dev)
+esp_err_t lidarlite_v4led_read_temperature(i2c_master_dev_handle_t dev, int8_t *temperature)
 {
-    uint8_t temperature = 0;
+    esp_err_t ret = ESP_OK;
 
-    /* Read one byte from register 0xE0 */
-    lidarlite_v4led_read(dev, 0xE0, &temperature, 1);
+    if (temperature == NULL)
+    {
+        ret = ESP_ERR_INVALID_ARG;
+    }
+    else
+    {
+        *temperature = 0;
+        /* Read one byte from register 0xE0 */
+        ret = lidarlite_v4led_read(dev, 0xE0, (uint8_t *)temperature, 1);
+    }
 
-    return temperature;
+    return ret;
 } /* lidarlite_v4led_read_temperature */
+
+esp_err_t lidarlite_v4led_set_high_accuracy_mode(i2c_master_dev_handle_t dev, uint8_t value)
+{
+    return lidarlite_v4led_write(dev, 0xEB, &value, 1);
+}
+
+esp_err_t lidarlite_v4led_read_high_accuracy_mode(i2c_master_dev_handle_t dev, uint8_t *value)
+{
+    esp_err_t ret = ESP_OK;
+
+    if (value == NULL)
+    {
+        ret = ESP_ERR_INVALID_ARG;
+        goto exit;
+    }
+
+    ret = lidarlite_v4led_read(dev, 0xEB, value, 1);
+
+exit:
+    return ret;
+}
+
+esp_err_t lidarlite_v4led_set_power_mode(i2c_master_dev_handle_t dev, uint8_t mode)
+{
+    return lidarlite_v4led_write(dev, 0xE2, &mode, 1);
+}
+
+esp_err_t lidarlite_v4led_read_power_mode(i2c_master_dev_handle_t dev, uint8_t * mode)
+{
+    esp_err_t ret = ESP_OK;
+
+    if (mode == NULL)
+    {
+        ret = ESP_ERR_INVALID_ARG;
+        goto exit;
+    }
+
+    ret = lidarlite_v4led_read(dev, 0xE2, mode, 1);
+
+exit:
+    return ret;
+}
 
 /*------------------------------------------------------------------------------
   Write
@@ -478,19 +596,25 @@ uint8_t lidarlite_v4led_read_temperature(i2c_master_dev_handle_t dev)
 ------------------------------------------------------------------------------*/
 esp_err_t lidarlite_v4led_write(i2c_master_dev_handle_t dev, uint8_t reg_addr, const uint8_t *data_bytes, uint8_t num_bytes)
 {
+    esp_err_t ret = ESP_OK;
+
     uint8_t *write_buf = malloc(num_bytes + 1);
+    if (write_buf == NULL)
+    {
+        ret = ESP_ERR_NO_MEM;
+        goto exit;
+    }
 
     write_buf[0] = reg_addr;
-    if (num_bytes > 0)
+    if (num_bytes > 0 && data_bytes != NULL)
     {
         memcpy(&write_buf[1], data_bytes, num_bytes);
     }
 
-    /* A failing return code here means the device is not responding. */
-    esp_err_t ret = i2c_master_transmit(dev, write_buf, num_bytes + 1, pdMS_TO_TICKS(I2C_TIMEOUT_MS));
-    
+    ret = i2c_master_transmit(dev, write_buf, num_bytes + 1, pdMS_TO_TICKS(I2C_TIMEOUT_MS));
     free(write_buf);
 
+exit:
     return ret;
 } /* lidarlite_v4led_write */
 
@@ -513,13 +637,19 @@ esp_err_t lidarlite_v4led_write(i2c_master_dev_handle_t dev, uint8_t reg_addr, c
 ------------------------------------------------------------------------------*/
 esp_err_t lidarlite_v4led_read(i2c_master_dev_handle_t dev, uint8_t reg_addr, uint8_t *data_bytes, uint8_t num_bytes)
 {
-    if (num_bytes == 0)
+    esp_err_t ret = ESP_OK;
+
+    if (num_bytes == 0 || data_bytes == NULL)
     {
-        return ESP_OK;
+        ret = ESP_ERR_INVALID_ARG;
+    }
+    else
+    {
+        ret = i2c_master_transmit_receive(dev, &reg_addr, 1, data_bytes, num_bytes, pdMS_TO_TICKS(I2C_TIMEOUT_MS));
     }
 
-    return i2c_master_transmit_receive(dev, &reg_addr, 1, data_bytes, num_bytes, pdMS_TO_TICKS(I2C_TIMEOUT_MS));
-} /* lidarlite_v4led_read */
+    return ret;
+}  /* lidarlite_v4led_read */
 
 /*------------------------------------------------------------------------------
   Correlation Record Read
@@ -545,15 +675,23 @@ esp_err_t lidarlite_v4led_read(i2c_master_dev_handle_t dev, uint8_t reg_addr, ui
                         allocated by calling function
   num_readings:      max is 192 (pass 192 for the full record)
 ------------------------------------------------------------------------------*/
-void lidarlite_v4led_correlation_record_read(i2c_master_dev_handle_t dev, int16_t *correlation_array, uint8_t num_readings)
+esp_err_t lidarlite_v4led_correlation_record_read(i2c_master_dev_handle_t dev, int16_t *correlation_array, uint8_t num_readings)
 {
+    esp_err_t ret = ESP_OK;
     uint8_t  i;
     int16_t  correlation_value;
     uint8_t *data_bytes = (uint8_t *) &correlation_value;
 
     for (i = 0; i < num_readings; i++)
     {
-        lidarlite_v4led_read(dev, 0x52, data_bytes, 2);
+        ret = lidarlite_v4led_read(dev, 0x52, data_bytes, 2);
+        if (ret != ESP_OK)
+        {
+            goto exit;
+        }
         correlation_array[i] = correlation_value;
     }
+
+exit:
+    return ret;
 } /* lidarlite_v4led_correlation_record_read */

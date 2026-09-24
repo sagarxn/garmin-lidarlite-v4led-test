@@ -13,10 +13,14 @@
 
 static char *TAG = "[board]";
 
-static i2c_master_dev_handle_t _gp_s_lidar_i2c_dev_handle = NULL;
+static i2c_master_bus_handle_t _gp_s_lidar_i2c_bus_handle = NULL;
+static i2c_master_dev_handle_t _gp_s_lidar_v4_i2c_dev_handle = NULL;
+static i2c_master_dev_handle_t _gp_s_lidar_v3_i2c_dev_handle = NULL;
 
 static esp_err_t _gpio_init(void);
 static esp_err_t _i2c_init(void);
+static esp_err_t _blink_init(void);
+static void _blink_task(void *pvParameters);
 
 esp_err_t board_init (void)
 {
@@ -36,13 +40,40 @@ esp_err_t board_init (void)
         goto exit;
     }
 
+    status = _blink_init();
+
 exit:
     return status;
 }
 
-i2c_master_dev_handle_t board_get_lidar_i2c_dev_handle (void)
+i2c_master_bus_handle_t board_get_lidar_i2c_bus_handle (void)
 {
-    return _gp_s_lidar_i2c_dev_handle;
+    return _gp_s_lidar_i2c_bus_handle;
+}
+
+i2c_master_dev_handle_t board_get_lidar_v4_i2c_dev_handle (void)
+{
+    return _gp_s_lidar_v4_i2c_dev_handle;
+}
+
+i2c_master_dev_handle_t board_get_lidar_v3_i2c_dev_handle (void)
+{
+    return _gp_s_lidar_v3_i2c_dev_handle;
+}
+
+void board_set_lidar_i2c_bus_handle(i2c_master_bus_handle_t bus_handle)
+{
+    _gp_s_lidar_i2c_bus_handle = bus_handle;
+}
+
+void board_set_lidar_v4_i2c_dev_handle(i2c_master_dev_handle_t dev_handle)
+{
+    _gp_s_lidar_v4_i2c_dev_handle = dev_handle;
+}
+
+void board_set_lidar_v3_i2c_dev_handle(i2c_master_dev_handle_t dev_handle)
+{
+    _gp_s_lidar_v3_i2c_dev_handle = dev_handle;
 }
 
 static esp_err_t _gpio_init(void)
@@ -83,8 +114,7 @@ static esp_err_t _i2c_init(void)
         .flags.enable_internal_pullup = false,
     };
 
-    i2c_master_bus_handle_t bus_handle;
-    status = i2c_new_master_bus(&i2c_mst_config, &bus_handle);
+    status = i2c_new_master_bus(&i2c_mst_config, &_gp_s_lidar_i2c_bus_handle);
     if (status != ESP_OK)
     {
         ESP_LOGE(TAG, "Failed to create I2C master bus: %s", esp_err_to_name(status));
@@ -93,16 +123,59 @@ static esp_err_t _i2c_init(void)
 
     i2c_device_config_t dev_cfg = {
         .dev_addr_length = I2C_ADDR_BIT_LEN_7,
-        .device_address  = BOARD_LIDAR_I2C_ADDR,
-        .scl_speed_hz    = BOARD_LIDAR_I2C_SCL_SPEED_HZ,
+        .device_address  = BOARD_LIDAR_V4_I2C_ADDR,
+        .scl_speed_hz    = BOARD_LIDAR_V4_I2C_SCL_SPEED_HZ,
     };
 
-    status = i2c_master_bus_add_device(bus_handle, &dev_cfg, &_gp_s_lidar_i2c_dev_handle);
+    status = i2c_master_bus_add_device(_gp_s_lidar_i2c_bus_handle, &dev_cfg, &_gp_s_lidar_v4_i2c_dev_handle);
     if (status != ESP_OK)
     {
         ESP_LOGE(TAG, "Failed to add LIDAR device to I2C bus: %s", esp_err_to_name(status));
+        goto exit;
+    }
+
+    dev_cfg.dev_addr_length = I2C_ADDR_BIT_LEN_7;
+    dev_cfg.device_address = BOARD_LIDAR_V3_I2C_ADDR;
+    dev_cfg.scl_speed_hz = BOARD_LIDAR_V3_I2C_SCL_SPEED_HZ;
+
+    status = i2c_master_bus_add_device(_gp_s_lidar_i2c_bus_handle, &dev_cfg, &_gp_s_lidar_v3_i2c_dev_handle);
+    if (status != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to add LIDAR V3 device to I2C bus: %s", esp_err_to_name(status));
     }
 
 exit:
     return status;
+}
+
+esp_err_t _blink_init(void)
+{
+    esp_err_t status = ESP_OK;
+
+    BaseType_t task_status = xTaskCreate(_blink_task,
+                                         "blink",
+                                         2048,
+                                         NULL,
+                                         5,
+                                         NULL);
+    if (pdPASS != task_status)
+    {
+        ESP_LOGE(TAG, "Failed to create blink task");
+        status = ESP_FAIL;
+    }
+
+    return status;
+}
+
+void _blink_task(void *pvParameters)
+{
+    (void)pvParameters;
+
+    while (1)
+    {
+        gpio_set_level(BOARD_HEART_LED_PIN, 1);
+        vTaskDelay(pdMS_TO_TICKS(500));
+        gpio_set_level(BOARD_HEART_LED_PIN, 0);
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
 }

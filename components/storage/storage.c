@@ -3,16 +3,19 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "esp_err.h"
+#include "esp_log.h"
+
 #include "driver/sdmmc_host.h"
 #include "esp_vfs_fat.h"
 #include "esp_littlefs.h"
 #include "nvs_flash.h"
 #include "sdmmc_cmd.h"
 
-#include "esp_err.h"
-#include "esp_log.h"
-
 static const char *TAG = "[storage]";
+
+#define WSCADA_QUEUE_FILE_PATH      (LITTLEFS_MOUNT_POINT "/wscada_queue.bin")
+#define WSCADA_QUEUE_ENTRY_SIZE     12
 
 static esp_err_t _littlefs_init();
 static esp_err_t _sdcard_init(void);
@@ -89,10 +92,10 @@ static esp_err_t _littlefs_init()
         goto exit;
     }
 
-    printf("================================================================================\n");
+    printf("--------------------------------------------------------------------------------\n");
     ESP_LOGI(TAG, "Partition size: total: %d, used: %d", total, used);
     ESP_LOGI(TAG, "Mount LITTLEFS filesystem on %s", LITTLEFS_MOUNT_POINT);
-    printf("================================================================================\n");
+    printf("--------------------------------------------------------------------------------\n");
 
 exit:
     return status;
@@ -127,4 +130,114 @@ static esp_err_t _sdcard_init(void)
 
 exit:
     return status;
+}
+
+esp_err_t storage_log_lidar(const char *datetime, uint32_t period_ms, float distance_m)
+{
+    esp_err_t status = ESP_OK;
+
+    FILE *f = fopen(LITTLEFS_MOUNT_POINT "/lidar_data.csv", "a");
+    if (f == NULL)
+    {
+        ESP_LOGE(TAG, "Failed to open file for writing");
+        status = ESP_FAIL;
+        goto exit;
+    }
+
+    // Current time, measurement period in ms, lidar distance in m
+    fprintf(f, "%s,%lu,%.2f\n", datetime, period_ms, distance_m);
+    fclose(f);
+
+exit:
+    return status;
+}
+
+esp_err_t storage_push_wscada_queue(uint32_t fat32_time, uint32_t interval, float distance)
+{
+    FILE *f = fopen(WSCADA_QUEUE_FILE_PATH, "ab");
+    if (f == NULL)
+    {
+        ESP_LOGE(TAG, "Failed to open queue file for writing");
+        return ESP_FAIL;
+    }
+
+    // Write fields sequentially into flash
+    fwrite(&fat32_time, sizeof(uint32_t), 1, f);
+    fwrite(&interval, sizeof(uint32_t), 1, f);
+    fwrite(&distance, sizeof(float), 1, f);
+
+    fclose(f);
+    ESP_LOGI(TAG, "Pushed 12-byte record to unsent queue file");
+    return ESP_OK;
+}
+
+esp_err_t storage_pop_wscada_queue(uint32_t *out_fat32_time, uint32_t *out_interval, float *out_distance)
+{
+    if (!out_fat32_time || !out_interval || !out_distance) return ESP_ERR_INVALID_ARG;
+
+    FILE *f = fopen(WSCADA_QUEUE_FILE_PATH, "rb");
+    if (f == NULL)
+    {
+        return ESP_ERR_NOT_FOUND;
+    }
+
+    // Read the oldest values at the head of the file
+    size_t r1 = fread(out_fat32_time, sizeof(uint32_t), 1, f);
+    size_t r2 = fread(out_interval, sizeof(uint32_t), 1, f);
+    size_t r3 = fread(out_distance, sizeof(float), 1, f);
+
+    if (r1 != 1 || r2 != 1 || r3 != 1)
+    {
+        fclose(f);
+        remove(WSCADA_QUEUE_FILE_PATH);
+        return ESP_ERR_NOT_FOUND;
+    }
+
+    // Calculate remaining size in file
+    fseek(f, 0, SEEK_END);
+    long total_size = ftell(f);
+    long remaining_bytes = total_size - WSCADA_QUEUE_ENTRY_SIZE;
+
+    if (remaining_bytes <= 0)
+    {
+        fclose(f);
+        remove(WSCADA_QUEUE_FILE_PATH);
+    }
+    else
+    {
+        // Shift file content forward by 12 bytes
+        uint8_t *buffer = malloc(remaining_bytes);
+        if (!buffer)
+        {
+            fclose(f);
+            return ESP_ERR_NO_MEM;
+        }
+
+        fseek(f, WSCADA_QUEUE_ENTRY_SIZE, SEEK_SET);
+        fread(buffer, 1, remaining_bytes, f);
+        fclose(f);
+
+        f = fopen(WSCADA_QUEUE_FILE_PATH, "wb");
+        if (f)
+        {
+            fwrite(buffer, 1, remaining_bytes, f);
+            fclose(f);
+        }
+        free(buffer);
+    }
+
+    return ESP_OK;
+}
+
+int storage_get_wscada_queue_count(void)
+{
+    FILE *f = fopen(WSCADA_QUEUE_FILE_PATH, "rb");
+    if (f == NULL) return 0;
+
+    fseek(f, 0, SEEK_END);
+    int size = ftell(f);
+    fclose(f);
+
+    if (size <= 0) return 0;
+    return size / WSCADA_QUEUE_ENTRY_SIZE;
 }
